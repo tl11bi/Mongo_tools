@@ -130,19 +130,34 @@ def copy_collection_if_not_exists(collection_name):
         logging.info(f"Collection '{collection_name}' already exists in secondary database.")
 
 
-# Function to copy view definitions if they do not exist
 def copy_views_if_not_exists():
+    """
+    Copy view definitions from the primary to the secondary database if they don't exist.
+    """
     for view in primary_db.list_collections(filter={"type": "view"}):
         view_name = view['name']
         if view_name not in secondary_db.list_collection_names():
             logging.info(f"Creating view '{view_name}' in secondary database...")
+
+            # Get the view pipeline and options (including collation)
             view_pipeline = view['options']['pipeline']
             view_collation = view['options'].get('collation', {})
-            secondary_db.create_collection(view_name, viewOn=view['options']['viewOn'], pipeline=view_pipeline, collation=view_collation)
-            logging.info(f"View '{view_name}' created successfully.")
+
+            # Check if the collation exists and if it contains the 'locale' field
+            if 'locale' not in view_collation and view_collation:
+                logging.warning(f"Skipping collation for view '{view_name}' due to missing locale.")
+                view_collation = None  # Skip the collation if locale is missing
+
+            # Create the view with or without collation
+            if view_collation:
+                secondary_db.create_collection(view_name, viewOn=view['options']['viewOn'], pipeline=view_pipeline, collation=view_collation)
+                logging.info(f"View '{view_name}' created with collation: {view_collation}")
+            else:
+                secondary_db.create_collection(view_name, viewOn=view['options']['viewOn'], pipeline=view_pipeline)
+                logging.info(f"View '{view_name}' created without collation.")
+
         else:
             logging.info(f"View '{view_name}' already exists in secondary database.")
-
 
 def validate_collection_copy(collection_name):
     """
