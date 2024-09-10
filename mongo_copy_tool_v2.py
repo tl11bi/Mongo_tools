@@ -77,13 +77,28 @@ def copy_indexes_if_not_exists(collection_name):
     primary_indexes = primary_collection.index_information()
     secondary_indexes = secondary_collection.index_information()
 
-    for index_name, index_info in primary_indexes.items():
-        if index_name not in secondary_indexes:
-            index_keys = index_info['key']
-            index_kwargs = {k: v for k, v in index_info.items() if k != 'key'}
-            secondary_collection.create_index(index_keys, **index_kwargs)
-            logging.info(f"Created missing index '{index_name}' in collection '{collection_name}'.")
+    for index_name, primary_index_info in primary_indexes.items():
+        secondary_index_info = secondary_indexes.get(index_name)
 
+        # Exclude 'ns' (namespace) from comparison for valid index check
+        if primary_index_info:
+            primary_index_info.pop('ns', None)
+        if secondary_index_info:
+            secondary_index_info.pop('ns', None)
+
+        # Check if index exists in db2, if not create it
+        if primary_index_info != secondary_index_info:
+            logging.warning(f"Indexes differ in collection '{collection_name}': db1={primary_index_info} vs db2={secondary_index_info}")
+            try:
+                # Recreate the missing index in db2
+                index_keys = primary_index_info['key']
+                index_kwargs = {k: v for k, v in primary_index_info.items() if k != 'key'}
+                secondary_collection.create_index(index_keys, **index_kwargs)
+                logging.info(f"Created index '{index_name}' in collection '{collection_name}' for db2.")
+            except Exception as e:
+                logging.error(f"Failed to create index '{index_name}' in collection '{collection_name}' for db2: {e}")
+        else:
+            logging.info(f"Index '{index_name}' already exists in db2 for collection '{collection_name}'.")
 
 def copy_capped_collection_if_not_exists(collection_name):
     """
