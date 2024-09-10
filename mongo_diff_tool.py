@@ -71,21 +71,29 @@ def compare_collection_counts(db1, db2, collection_name):
 
 def compare_indexes(db1, db2, collection_name):
     """
-    Compare indexes between two collections.
-
+    Compare indexes between two collections, ignoring the 'ns' field (namespace).
+    
     :param db1: First MongoDB database.
     :param db2: Second MongoDB database.
     :param collection_name: Name of the collection to compare indexes.
     :return: None
     """
-    indexes_db1 = db1[collection_name].index_information()
-    indexes_db2 = db2[collection_name].index_information()
+    primary_collection = db1[collection_name]
+    secondary_collection = db2[collection_name]
 
-    if indexes_db1 != indexes_db2:
-        logging.warning(f"Indexes differ in collection '{collection_name}': db1={indexes_db1} vs db2={indexes_db2}")
-    else:
-        logging.info(f"Indexes match in collection '{collection_name}'")
+    primary_indexes = primary_collection.index_information()
+    secondary_indexes = secondary_collection.index_information()
 
+    for index_name, primary_index_info in primary_indexes.items():
+        secondary_index_info = secondary_indexes.get(index_name)
+
+        # Exclude 'ns' (namespace) from comparison
+        if primary_index_info and secondary_index_info:
+            primary_index_info.pop('ns', None)
+            secondary_index_info.pop('ns', None)
+
+        if primary_index_info != secondary_index_info:
+            logging.warning(f"Indexes differ in collection '{collection_name}': db1={primary_index_info} vs db2={secondary_index_info}")
 
 def compare_nested_fields(value1, value2):
     """
