@@ -89,12 +89,27 @@ def copy_indexes_if_not_exists(collection_name):
         # Check if index exists in db2, if not create it
         if primary_index_info != secondary_index_info:
             logging.warning(f"Indexes differ in collection '{collection_name}': db1={primary_index_info} vs db2={secondary_index_info}")
+            
+            # Log the full index information for further debugging
+            logging.debug(f"Attempting to create index: {primary_index_info}")
+
+            # Validate index specifiers and create index
             try:
-                # Recreate the missing index in db2
                 index_keys = primary_index_info['key']
-                index_kwargs = {k: v for k, v in primary_index_info.items() if k != 'key'}
-                secondary_collection.create_index(index_keys, **index_kwargs)
-                logging.info(f"Created index '{index_name}' in collection '{collection_name}' for db2.")
+                
+                # Validate the key values, ensuring they are valid MongoDB specifiers
+                valid_key = True
+                for field, value in index_keys:
+                    if value not in [1, -1, '2d', '2dsphere', 'text', 'hashed']:
+                        logging.error(f"Invalid index specifier: {field}={value} in collection '{collection_name}'. Skipping this index.")
+                        valid_key = False
+                        break
+                
+                if valid_key:
+                    # Create the index only if the key specifiers are valid
+                    index_kwargs = {k: v for k, v in primary_index_info.items() if k != 'key'}
+                    secondary_collection.create_index(index_keys, **index_kwargs)
+                    logging.info(f"Created index '{index_name}' in collection '{collection_name}' for db2.")
             except Exception as e:
                 logging.error(f"Failed to create index '{index_name}' in collection '{collection_name}' for db2: {e}")
         else:
