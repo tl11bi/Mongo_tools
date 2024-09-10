@@ -54,9 +54,17 @@ def copy_collection_options(collection_name):
     Copy collection options like collation, validation, etc., from primary to secondary.
     """
     options = primary_db.command('listCollections', filter={"name": collection_name})['cursor']['firstBatch'][0].get('options', {})
+
+    # Ensure collation has a locale if it exists
+    if 'collation' in options and 'locale' not in options['collation']:
+        logging.warning(f"Skipping collation for collection '{collection_name}' due to missing locale.")
+        options.pop('collation', None)  # Remove collation if locale is missing
+
     if options:
         secondary_db.create_collection(collection_name, **options)
         logging.info(f"Created collection '{collection_name}' with options: {options}")
+    else:
+        logging.info(f"Creating collection '{collection_name}' without additional options.")
 
 
 def copy_indexes_if_not_exists(collection_name):
